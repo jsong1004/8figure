@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
@@ -18,9 +18,33 @@ export default function Home() {
   const [results, setResults] = useState<any>(null);
   const [metricsData, setMetricsData] = useState<any>(null);
   const [selectedDays, setSelectedDays] = useState(30);
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
-  // Show loading while checking authentication
-  if (status === 'loading') {
+  // Check if demo mode is enabled
+  useEffect(() => {
+    const checkDemoMode = async () => {
+      try {
+        // Make a test request to see if demo mode is enabled
+        const response = await axios.post('/api/query/nl', { 
+          query: 'test' 
+        }, { 
+          validateStatus: () => true // Don't throw on any status
+        });
+        
+        // If we get a response (even an error), demo mode is likely enabled
+        // since it bypassed authentication
+        setIsDemoMode(true);
+      } catch (error) {
+        // If we get an auth error, demo mode is not enabled
+        setIsDemoMode(false);
+      }
+    };
+    
+    checkDemoMode();
+  }, []);
+
+  // Show loading while checking authentication (unless in demo mode)
+  if (status === 'loading' && !isDemoMode) {
     return (
       <Layout>
         <div className="card">
@@ -30,8 +54,8 @@ export default function Home() {
     );
   }
 
-  // Show sign in message if not authenticated
-  if (!session) {
+  // Show sign in message if not authenticated and not in demo mode
+  if (!session && !isDemoMode) {
     return (
       <Layout>
         <div className="text-center">

@@ -1,20 +1,24 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
-import { getBigQueryClientWithToken } from '@/lib/bigquery';
+import { getBigQueryClientWithToken, getBigQueryClient } from '@/lib/bigquery';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const isDemo = process.env.DEMO_MODE === 'true';
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Check authentication
-  const session = await getServerSession(req, res, authOptions);
-  if (!session || !session.accessToken) {
-    return res.status(401).json({ error: 'Authentication required' });
+  // Check authentication unless in demo mode
+  let session;
+  if (!isDemo) {
+    session = await getServerSession(req, res, authOptions);
+    if (!session || !session.accessToken) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
   }
 
   try {
@@ -24,8 +28,10 @@ export default async function handler(
       return res.status(400).json({ error: 'SQL query is required' });
     }
 
-    // Execute the query with user's access token
-    const bigquery = await getBigQueryClientWithToken(session.accessToken as string);
+    // Execute the query
+    const bigquery = isDemo
+      ? getBigQueryClient()
+      : await getBigQueryClientWithToken(session.accessToken as string);
     const [rows] = await bigquery.query({
       query: sql,
       location: process.env.BIGQUERY_LOCATION || 'US',

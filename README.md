@@ -80,7 +80,33 @@ NEXTAUTH_SECRET=your-nextauth-secret
 # OpenRouter Configuration
 OPENROUTER_API_KEY=your-openrouter-api-key
 APP_URL=http://localhost:3000
+
+# Demo mode (bypass Google login, use server OAuth refresh token)
+# WARNING: Only use for local demos, not production.
+DEMO_MODE=false
 ```
+
+### Demo Mode (No Google Login Required)
+
+For local demos or testing, you can bypass Google authentication entirely:
+
+1. **Enable Demo Mode:**
+   ```env
+   DEMO_MODE=true
+   ```
+
+2. **Ensure you have a valid `GOOGLE_REFRESH_TOKEN`** (see "Getting a Google Refresh Token" below)
+
+3. **Restart your development server:**
+   ```bash
+   npm run dev
+   ```
+
+**How it works:**
+- Demo mode uses the server's `GOOGLE_REFRESH_TOKEN` for BigQuery access
+- No Google login required - the app works immediately
+- Perfect for demos, testing, or when you don't want to manage user authentication
+- **Security Note:** Only use demo mode for local development. In production, always require user authentication.
 
 ### BigQuery Location
 

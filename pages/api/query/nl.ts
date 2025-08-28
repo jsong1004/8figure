@@ -1,44 +1,47 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
-import { getBigQueryClientWithToken } from '@/lib/bigquery';
+import { getBigQueryClientWithToken, getBigQueryClient } from '@/lib/bigquery';
 import { convertNLToSQL } from '@/lib/nlToSql';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const isDemo = process.env.DEMO_MODE === 'true';
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Check authentication
+  // Check authentication unless in demo mode
   let session;
-  try {
-    session = await getServerSession(req, res, authOptions);
-  } catch (error: any) {
-    console.error('Session error:', error);
-    if (error.name === 'JWEDecryptionFailed') {
+  if (!isDemo) {
+    try {
+      session = await getServerSession(req, res, authOptions);
+    } catch (error: any) {
+      console.error('Session error:', error);
+      if (error.name === 'JWEDecryptionFailed') {
+        return res.status(401).json({ 
+          error: 'Session expired or invalid. Please sign in again.',
+          code: 'SESSION_INVALID'
+        });
+      }
+      return res.status(500).json({ error: 'Authentication error' });
+    }
+    
+    if (!session || !session.accessToken) {
       return res.status(401).json({ 
-        error: 'Session expired or invalid. Please sign in again.',
-        code: 'SESSION_INVALID'
+        error: 'Authentication required',
+        code: 'NO_SESSION'
       });
     }
-    return res.status(500).json({ error: 'Authentication error' });
-  }
-  
-  if (!session || !session.accessToken) {
-    return res.status(401).json({ 
-      error: 'Authentication required',
-      code: 'NO_SESSION'
-    });
-  }
-  
-  if (session.error === 'RefreshAccessTokenError') {
-    return res.status(401).json({ 
-      error: 'Token expired. Please sign in again.',
-      code: 'TOKEN_EXPIRED'
-    });
+    
+    if (session.error === 'RefreshAccessTokenError') {
+      return res.status(401).json({ 
+        error: 'Token expired. Please sign in again.',
+        code: 'TOKEN_EXPIRED'
+      });
+    }
   }
 
   try {
@@ -53,8 +56,10 @@ export default async function handler(
     console.log('Generated SQL Query:', sqlQuery);
     console.log('Original Query:', query);
     
-    // Execute the query with user's access token
-    const bigquery = await getBigQueryClientWithToken(session.accessToken as string);
+    // Execute the query
+    const bigquery = isDemo
+      ? getBigQueryClient()
+      : await getBigQueryClientWithToken(session.accessToken as string);
     const [rows] = await bigquery.query({
       query: sqlQuery,
       location: process.env.BIGQUERY_LOCATION || 'US',
